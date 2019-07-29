@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"github.com/binance-chain/go-sdk/keys"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -59,6 +60,8 @@ type WSEvents struct {
 	responseChanMap sync.Map
 
 	timeout time.Duration
+
+	keyManager *keys.KeyManager
 }
 
 func newWSEvents(cdc *amino.Codec, remote, endpoint string) *WSEvents {
@@ -74,6 +77,12 @@ func newWSEvents(cdc *amino.Codec, remote, endpoint string) *WSEvents {
 
 	wsEvents.BaseService = *cmn.NewBaseService(nil, "WSEvents", wsEvents)
 	return wsEvents
+}
+
+func SetKeyManagerOp(k *keys.KeyManager) Option{
+	return func(h *HTTP) {
+		h.keyManager = k
+	}
 }
 
 // OnStart implements cmn.Service by starting WSClient and event loop.
@@ -107,8 +116,12 @@ func (w *WSEvents) PendingRequest() int {
 	return size
 }
 
-func (c *WSEvents) IsActive() bool {
-	return c.ws.IsActive()
+func (w *WSEvents) IsActive() bool {
+	return w.ws.IsActive()
+}
+
+func (w *WSEvents) setKeyManager(k *keys.KeyManager){
+	w.keyManager = k
 }
 
 // Subscribe implements EventsClient by using WSClient to subscribe given

@@ -282,6 +282,35 @@ func (c *HTTP) GetProposal(proposalId int64) (types.Proposal, error) {
 	return proposal, err
 }
 
+func (c *HTTP) CreateOrder(baseAssetSymbol, quoteAssetSymbol string, op int8, price, quantity int64, sync bool, options ...TxOption) (*CreateOrderResult, error) {
+
+}
+
+
+type TxOption func(*tx.StdSignMsg) *tx.StdSignMsg
+
+func WithSource(source int64) TxOption {
+	return func(txMsg *tx.StdSignMsg) *tx.StdSignMsg {
+		txMsg.Source = source
+		return txMsg
+	}
+}
+
+func WithMemo(memo string) TxOption {
+	return func(txMsg *tx.StdSignMsg) *tx.StdSignMsg {
+		txMsg.Memo = memo
+		return txMsg
+	}
+}
+
+func WithAcNumAndSequence(accountNum, seq int64) TxOption {
+	return func(txMsg *tx.StdSignMsg) *tx.StdSignMsg {
+		txMsg.Sequence = seq
+		txMsg.AccountNumber = accountNum
+		return txMsg
+	}
+}
+
 func (c *HTTP) existsCC(symbol string) bool {
 	resp, err := c.ABCIQuery(fmt.Sprintf("tokens/info/%s", symbol), nil)
 	if err != nil {

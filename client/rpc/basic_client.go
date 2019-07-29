@@ -35,18 +35,20 @@ type EventsClient interface {
 	UnsubscribeAll() error
 }
 
-func NewRPCClient(nodeURI string, network ntypes.ChainNetwork) *HTTP {
+func NewRPCClient(nodeURI string, network ntypes.ChainNetwork, options ...Option) *HTTP {
 	ntypes.Network = network
-	return NewHTTP(nodeURI, "/websocket")
+	return NewHTTP(nodeURI, "/websocket", options...)
 }
 
 type HTTP struct {
 	*WSEvents
 }
 
+type Option func(*HTTP)
+
 // NewHTTP takes a remote endpoint in the form tcp://<host>:<port>
 // and the websocket path (which always seems to be "/websocket")
-func NewHTTP(remote, wsEndpoint string) *HTTP {
+func NewHTTP(remote, wsEndpoint string, options ...Option) *HTTP {
 	rc := rpcclient.NewJSONRPCClient(remote)
 	cdc := rc.Codec()
 	ctypes.RegisterAmino(cdc)
@@ -57,6 +59,9 @@ func NewHTTP(remote, wsEndpoint string) *HTTP {
 	wsEvent := newWSEvents(cdc, remote, wsEndpoint)
 	client := &HTTP{
 		WSEvents: wsEvent,
+	}
+	for _, op := range options {
+		op(client)
 	}
 	client.Start()
 	return client
