@@ -15,8 +15,6 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	"github.com/binance-chain/go-sdk/common"
-	"github.com/binance-chain/go-sdk/common/ledger"
-	"github.com/binance-chain/go-sdk/common/types"
 	ctypes "github.com/binance-chain/go-sdk/common/types"
 	"github.com/binance-chain/go-sdk/common/uuid"
 	"github.com/binance-chain/go-sdk/types/tx"
@@ -39,7 +37,15 @@ type KeyManager interface {
 
 func NewMnemonicKeyManager(mnemonic string) (KeyManager, error) {
 	k := keyManager{}
-	err := k.recoveryFromKMnemonic(mnemonic)
+	err := k.recoveryFromMnemonic(mnemonic, FullPath)
+	return &k, err
+}
+
+// The full path is  "purpose' / coin_type' / account' / change / address_index".
+// "purpose' / coin_type'" is fixed as "44'/714'/", user can customize the rest part.
+func NewMnemonicPathKeyManager(mnemonic, keyPath string) (KeyManager, error) {
+	k := keyManager{}
+	err := k.recoveryFromMnemonic(mnemonic, BIP44Prefix+keyPath)
 	return &k, err
 }
 
@@ -55,11 +61,11 @@ func NewPrivateKeyManager(priKey string) (KeyManager, error) {
 	return &k, err
 }
 
-func NewLedgerKeyManager(path ledger.DerivationPath) (KeyManager, error) {
-	k := keyManager{}
-	err := k.recoveryFromLedgerKey(path)
-	return &k, err
-}
+//func NewLedgerKeyManager(path ledger.DerivationPath) (KeyManager, error) {
+//	k := keyManager{}
+//	err := k.recoveryFromLedgerKey(path)
+//	return &k, err
+//}
 
 type keyManager struct {
 	privKey  crypto.PrivKey
@@ -98,7 +104,7 @@ func NewKeyManager() (KeyManager, error) {
 	return NewMnemonicKeyManager(mnemonic)
 }
 
-func (m *keyManager) recoveryFromKMnemonic(mnemonic string) error {
+func (m *keyManager) recoveryFromMnemonic(mnemonic, keyPath string) error {
 	words := strings.Split(mnemonic, " ")
 	if len(words) != 12 && len(words) != 24 {
 		return fmt.Errorf("mnemonic length should either be 12 or 24")
@@ -109,7 +115,7 @@ func (m *keyManager) recoveryFromKMnemonic(mnemonic string) error {
 	}
 	// create master key and derive first key:
 	masterPriv, ch := ComputeMastersFromSeed(seed)
-	derivedPriv, err := DerivePrivateKeyForPath(masterPriv, ch, FullFundraiserPath)
+	derivedPriv, err := DerivePrivateKeyForPath(masterPriv, ch, keyPath)
 	if err != nil {
 		return err
 	}
@@ -171,26 +177,26 @@ func (m *keyManager) recoveryFromPrivateKey(privateKey string) error {
 	return nil
 }
 
-func (m *keyManager) recoveryFromLedgerKey(path ledger.DerivationPath) error {
-	if ledger.DiscoverLedger == nil {
-		return fmt.Errorf("no Ledger discovery function defined, please make sure you have added ledger to build tags and cgo is enabled")
-	}
-
-	device, err := ledger.DiscoverLedger()
-	if err != nil {
-		return fmt.Errorf("failed to find ledger device: %s", err.Error())
-	}
-
-	pkl, err := ledger.GenLedgerSecp256k1Key(path, device)
-	if err != nil {
-		return fmt.Errorf("failed to create PrivKeyLedgerSecp256k1: %s", err.Error())
-	}
-
-	addr := types.AccAddress(pkl.PubKey().Address())
-	m.addr = addr
-	m.privKey = pkl
-	return nil
-}
+//func (m *keyManager) recoveryFromLedgerKey(path ledger.DerivationPath) error {
+//	if ledger.DiscoverLedger == nil {
+//		return fmt.Errorf("no Ledger discovery function defined, please make sure you have added ledger to build tags and cgo is enabled")
+//	}
+//
+//	device, err := ledger.DiscoverLedger()
+//	if err != nil {
+//		return fmt.Errorf("failed to find ledger device: %s", err.Error())
+//	}
+//
+//	pkl, err := ledger.GenLedgerSecp256k1Key(path, device)
+//	if err != nil {
+//		return fmt.Errorf("failed to create PrivKeyLedgerSecp256k1: %s", err.Error())
+//	}
+//
+//	addr := types.AccAddress(pkl.PubKey().Address())
+//	m.addr = addr
+//	m.privKey = pkl
+//	return nil
+//}
 
 func (m *keyManager) Sign(msg tx.StdSignMsg) ([]byte, error) {
 	sig, err := m.makeSignature(msg)
