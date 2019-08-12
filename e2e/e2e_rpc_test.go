@@ -20,13 +20,13 @@ import (
 )
 
 var (
-	nodeAddr           = "tcp://127.0.0.1:80"
+	nodeAddr           = "tcp://seed-qa-s3.fdgahl.cn:80"
 	badAddr            = "tcp://127.0.0.1:80"
 	testTxHash         = "A27C20143E6B7D8160B50883F81132C1DFD0072FF2C1FE71E0158FBD001E23E4"
 	testTxHeight       = 8669273
 	testAddress        = "tbnb1l6vgk5yyxcalm06gdsg55ay4pjkfueazkvwh58"
 	testDelAddr        = "tbnb12hlquylu78cjylk5zshxpdj6hf3t0tahwjt3ex"
-	testTradePair      = "X00-243_BNB"
+	testTradePair      = "X09-952_BNB"
 	testTxStr          = "xxx"
 	onceClient         = sync.Once{}
 	testClientInstance *rpc.HTTP
@@ -445,7 +445,7 @@ func TestGetTradePair(t *testing.T) {
 
 func TestGetDepth(t *testing.T) {
 	c := defaultClient()
-	depth, err := c.GetDepth(testTradePair, 2)
+	depth, err := c.GetDepth(testTradePair, 1000)
 	assert.NoError(t, err)
 	bz, err := json.Marshal(depth)
 	fmt.Println(string(bz))
@@ -512,3 +512,5 @@ func TestNoRequestLeakInGoodNetwork(t *testing.T) {
 	w.Wait()
 	assert.Equal(t, c.PendingRequest(), 0)
 }
+
+

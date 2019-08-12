@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/hex"
 	"fmt"
 	"github.com/binance-chain/go-sdk/client/transaction"
 	"testing"
@@ -228,4 +229,24 @@ func TestTransProcess(t *testing.T) {
 	l, err := client.ListPair(listTradingProposal.ProposalId, issue.Symbol, nativeSymbol, 1000000000, true)
 	assert.NoError(t, err)
 	fmt.Printf("List trading pair: %v\n", l)
+}
+
+
+func TestSig(t *testing.T){
+	client, _ := sdk.NewDexClient("dex.binance.org", ctypes.ProdNetwork, nil)
+	acc,err:=client.GetAccount("bnb1xwalxpaes9r0z0fqdy70j3kz6aayetegur38gl")
+
+	fmt.Println(err)
+	fmt.Println(acc.PublicKey)
+	tx:="e101f0625dee0a68ce6dc0430a1433bbf307b98146f13d20693cf946c2d77a4caf28122c333342424633303742393831343646313344323036393343463934364332443737413443414632382d3339381a0d424e425f55534453422d3141432002280130a0c5e5c40b38b0f7c7034003126f0a26eb5ae9872103f4f53863cceba8447e866fdc523623bdb8d80e11774d3f6e609f973006a92c52124086751c81993e28ea02928a7eb4b2ef7d113e8f510c7fc2db76ee819fc03382017b15b130d5869472777d0858f391dbd98efb012a07f2b2d2ff66f52fa661ed61181d208d032002"
+	txbytes,_:=hex.DecodeString(tx)
+	var stdts txtype.StdTx
+	err=txtype.Cdc.UnmarshalBinaryLengthPrefixed(txbytes,&stdts)
+	fmt.Println(err)
+	fmt.Println(stdts)
+
+	signBytes:=txtype.StdSignBytes("Binance-Chain-Tigris",stdts.Signatures[0].AccountNumber,stdts.Signatures[0].Sequence,stdts.GetMsgs(),stdts.Memo,stdts.Source,stdts.Data)
+
+	verify:=stdts.Signatures[0].PubKey.VerifyBytes(signBytes,stdts.Signatures[0].Signature)
+	fmt.Println(verify)
 }
