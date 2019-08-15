@@ -23,6 +23,7 @@ func RegisterCodec(cdc *amino.Codec) {
 	cdc.RegisterConcrete(TimeRelockMsg{}, "tokens/TimeRelockMsg", nil)
 
 	cdc.RegisterConcrete(HashTimerLockTransferMsg{}, "tokens/HashTimerLockTransferMsg", nil)
+	cdc.RegisterConcrete(DepositHashTimerLockMsg{}, "tokens/DepositHashTimerLockMsg", nil)
 	cdc.RegisterConcrete(ClaimHashTimerLockMsg{}, "tokens/ClaimHashTimerLockMsg", nil)
 	cdc.RegisterConcrete(RefundHashTimerLockMsg{}, "tokens/RefundHashTimerLockMsg", nil)
 
