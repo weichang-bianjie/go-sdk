@@ -95,7 +95,7 @@ func (r *ABCIResponses) complement() {
 type ResponseEndBlock struct {
 	ValidatorUpdates      []types.ValidatorUpdate `json:"validator_updates"`
 	ConsensusParamUpdates *types.ConsensusParams  `json:"consensus_param_updates,omitempty"`
-	Events                []types.Event           `json:"events,omitempty"`
+	//Events                []types.Event           `json:"events,omitempty"`
 	//Tags                  []cmn.KVPair            `json:"tags,omitempty"`
 }
 
