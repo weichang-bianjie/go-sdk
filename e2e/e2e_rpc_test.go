@@ -16,18 +16,23 @@ import (
 	"github.com/tendermint/tendermint/types"
 
 	"github.com/binance-chain/go-sdk/client/rpc"
+	"github.com/binance-chain/go-sdk/client/transaction"
 	ctypes "github.com/binance-chain/go-sdk/common/types"
+	"github.com/binance-chain/go-sdk/keys"
+	"github.com/binance-chain/go-sdk/types/msg"
 )
 
 var (
-	nodeAddr           = "tcp://127.0.0.1:80"
+	nodeAddr           = "tcp://data-seed-pre-0-s3.binance.org:80"
 	badAddr            = "tcp://127.0.0.1:80"
-	testTxHash         = "A27C20143E6B7D8160B50883F81132C1DFD0072FF2C1FE71E0158FBD001E23E4"
-	testTxHeight       = 8669273
-	testAddress        = "tbnb1l6vgk5yyxcalm06gdsg55ay4pjkfueazkvwh58"
+	testTxHash         = "F45BAB1BA5B79609F7307A64AD1F84ECFAF73D1F2C2D010D17F41303BC1B00CA"
+	testTxHeight       = int64(47905085)
+	testAddress        = "tbnb1e803p76n4rtyeclef7pg3295nurwfuwsw8l36m"
 	testDelAddr        = "tbnb12hlquylu78cjylk5zshxpdj6hf3t0tahwjt3ex"
-	testTradePair      = "X00-243_BNB"
+	testTradePair      = "PPC-00A_BNB"
+	testTradeSymbol    = "000-0E1"
 	testTxStr          = "xxx"
+	mnemonic           = "test mnemonic"
 	onceClient         = sync.Once{}
 	testClientInstance *rpc.HTTP
 )
@@ -53,21 +58,42 @@ func defaultClient() *rpc.HTTP {
 
 func TestRPCGetProposals(t *testing.T) {
 	c := defaultClient()
-	statuses:= []ctypes.ProposalStatus{
+	statuses := []ctypes.ProposalStatus{
 		ctypes.StatusDepositPeriod,
 		ctypes.StatusVotingPeriod,
 		ctypes.StatusPassed,
 		ctypes.StatusRejected,
 	}
-	for _,s:=range statuses{
+	for _, s := range statuses {
 		proposals, err := c.GetProposals(s, 100)
 		assert.NoError(t, err)
-		for _,p:=range proposals{
-			assert.Equal(t,p.GetStatus(),s)
+		for _, p := range proposals {
+			assert.Equal(t, p.GetStatus(), s)
 		}
 		bz, err := json.Marshal(proposals)
 		fmt.Println(string(bz))
 	}
+}
+func TestRPCGetTimelocks(t *testing.T) {
+	c := defaultClient()
+	acc, err := ctypes.AccAddressFromBech32(testAddress)
+	assert.NoError(t, err)
+	records, err := c.GetTimelocks(acc)
+	assert.NoError(t, err)
+	fmt.Println(len(records))
+	for _, record := range records {
+		fmt.Println(record)
+	}
+}
+
+func TestRPCGetTimelock(t *testing.T) {
+	c := defaultClient()
+	acc, err := ctypes.AccAddressFromBech32(testAddress)
+	assert.NoError(t, err)
+	record, err := c.GetTimelock(acc, 1)
+	assert.NoError(t, err)
+	fmt.Println(record)
+
 }
 
 func TestRPCGetProposal(t *testing.T) {
@@ -168,7 +194,7 @@ func TestBlock(t *testing.T) {
 
 func TestBlockResults(t *testing.T) {
 	c := defaultClient()
-	block, err := c.BlockResults(nil)
+	block, err := c.BlockResults(&testTxHeight)
 	assert.NoError(t, err)
 	bz, err := json.Marshal(block)
 	fmt.Println(string(bz))
@@ -428,9 +454,48 @@ func TestGetTradePair(t *testing.T) {
 
 func TestGetDepth(t *testing.T) {
 	c := defaultClient()
-	depth, err := c.GetDepth(testTradePair)
+	depth, err := c.GetDepth(testTradePair, 2)
 	assert.NoError(t, err)
 	bz, err := json.Marshal(depth)
+	fmt.Println(string(bz))
+}
+
+func TestSendToken(t *testing.T) {
+	c := defaultClient()
+	ctypes.Network = ctypes.TestNetwork
+	keyManager, err := keys.NewMnemonicKeyManager(mnemonic)
+	assert.NoError(t, err)
+	c.SetKeyManager(keyManager)
+	testacc, err := ctypes.AccAddressFromBech32(testAddress)
+	assert.NoError(t, err)
+	res, err := c.SendToken([]msg.Transfer{{testacc, []ctypes.Coin{{"BNB", 100000}}}}, rpc.Sync, transaction.WithMemo("123"))
+	assert.NoError(t, err)
+	bz, err := json.Marshal(res)
+	fmt.Println(string(bz))
+}
+
+func TestCreateOrder(t *testing.T) {
+	c := defaultClient()
+	ctypes.Network = ctypes.TestNetwork
+	keyManager, err := keys.NewMnemonicKeyManager(mnemonic)
+	assert.NoError(t, err)
+	c.SetKeyManager(keyManager)
+	createOrderResult, err := c.CreateOrder(testTradeSymbol, "BNB", msg.OrderSide.BUY, 100000000, 100000000, rpc.Commit, transaction.WithSource(100), transaction.WithMemo("test memo"))
+
+	assert.NoError(t, err)
+	bz, err := json.Marshal(createOrderResult)
+	fmt.Println(string(bz))
+	fmt.Println(createOrderResult.Hash.String())
+
+	type commitData struct {
+		OrderId string `json:"order_id"`
+	}
+	var cdata commitData
+	err = json.Unmarshal([]byte(createOrderResult.Data), &cdata)
+	assert.NoError(t, err)
+	cancleOrderResult, err := c.CancelOrder(testTradeSymbol, "BNB", cdata.OrderId, rpc.Commit)
+	assert.NoError(t, err)
+	bz, _ = json.Marshal(cancleOrderResult)
 	fmt.Println(string(bz))
 }
 
