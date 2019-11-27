@@ -30,17 +30,17 @@ type ResponseCheckTx struct {
 	Info      string        `json:"info,omitempty"`
 	GasWanted int64         `json:"gas_wanted,omitempty"`
 	GasUsed   int64         `json:"gas_used,omitempty"`
-	Events    []types.Event `json:"events,omitempty"`
-	Tags      []cmn.KVPair  `json:"tags,omitempty"`
+	//Events    []types.Event `json:"events,omitempty"`
+	//Tags      []cmn.KVPair  `json:"tags,omitempty"`
 	Codespace string        `json:"codespace,omitempty"`
 }
 
 func (r *ResponseCheckTx) complement() {
-	if len(r.Tags) > 0 {
-		r.Events = []types.Event{{Attributes: r.Tags}}
-	} else if len(r.Events) > 0 {
-		r.Tags = r.Events[0].Attributes
-	}
+	//if len(r.Tags) > 0 {
+	//	//r.Events = []types.Event{{Attributes: r.Tags}}
+	//} else if len(r.Events) > 0 {
+	//	//r.Tags = r.Events[0].Attributes
+	//}
 }
 
 type ResponseDeliverTx struct {
@@ -50,17 +50,17 @@ type ResponseDeliverTx struct {
 	Info      string        `json:"info,omitempty"`
 	GasWanted int64         `json:"gas_wanted,omitempty"`
 	GasUsed   int64         `json:"gas_used,omitempty"`
-	Events    []types.Event `json:"events,omitempty"`
-	Tags      []cmn.KVPair  `json:"tags,omitempty"`
+	//Events    []types.Event `json:"events,omitempty"`
+	//Tags      []cmn.KVPair  `json:"tags,omitempty"`
 	Codespace string        `json:"codespace,omitempty"`
 }
 
 func (r *ResponseDeliverTx) complement() {
-	if len(r.Tags) > 0 {
-		r.Events = []types.Event{{Attributes: r.Tags}}
-	} else if len(r.Events) > 0 {
-		r.Tags = r.Events[0].Attributes
-	}
+	//if len(r.Tags) > 0 {
+	//	r.Events = []types.Event{{Attributes: r.Tags}}
+	//} else if len(r.Events) > 0 {
+	//	r.Tags = r.Events[0].Attributes
+	//}
 }
 
 type ResultBlockResults struct {
@@ -96,28 +96,28 @@ type ResponseEndBlock struct {
 	ValidatorUpdates      []types.ValidatorUpdate `json:"validator_updates"`
 	ConsensusParamUpdates *types.ConsensusParams  `json:"consensus_param_updates,omitempty"`
 	Events                []types.Event           `json:"events,omitempty"`
-	Tags                  []cmn.KVPair            `json:"tags,omitempty"`
+	//Tags                  []cmn.KVPair            `json:"tags,omitempty"`
 }
 
 func (r *ResponseEndBlock) complement() {
-	if len(r.Tags) > 0 {
-		r.Events = []types.Event{{Attributes: r.Tags}}
-	} else if len(r.Events) > 0 {
-		r.Tags = r.Events[0].Attributes
-	}
+	//if len(r.Tags) > 0 {
+	//	r.Events = []types.Event{{Attributes: r.Tags}}
+	//} else if len(r.Events) > 0 {
+	//	r.Tags = r.Events[0].Attributes
+	//}
 }
 
 type ResponseBeginBlock struct {
-	Events []types.Event `json:"events,omitempty"`
-	Tags   []cmn.KVPair  `json:"tags,omitempty"`
+	//Events []types.Event `json:"events,omitempty"`
+	//Tags   []cmn.KVPair  `json:"tags,omitempty"`
 }
 
 func (r *ResponseBeginBlock) complement() {
-	if len(r.Tags) > 0 {
-		r.Events = []types.Event{{Attributes: r.Tags}}
-	} else if len(r.Events) > 0 {
-		r.Tags = r.Events[0].Attributes
-	}
+	//if len(r.Tags) > 0 {
+	//	r.Events = []types.Event{{Attributes: r.Tags}}
+	//} else if len(r.Events) > 0 {
+	//	r.Tags = r.Events[0].Attributes
+	//}
 }
 
 type ResultTx struct {
