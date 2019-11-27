@@ -20,3 +20,4 @@ test/
 *.swp
 .vscode/*.json
 bnc-go-sdk
+/mock/*.txt
