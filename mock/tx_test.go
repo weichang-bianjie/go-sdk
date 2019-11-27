@@ -13,6 +13,8 @@ import (
 	"github.com/binance-chain/go-sdk/client/rpc"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
+	"github.com/binance-chain/go-sdk/types/tx"
 )
 
 var (
@@ -171,11 +173,57 @@ func TestGetTxDetail(t *testing.T) {
 	resultTx, err := rpcClient.Tx(txHashBytes, false)
 	if err != nil {
 		t.Fatal(err)
+	} else {
+		t.Logf("tx result is:\n %s\n", marshalJsonIgnoreError(resultTx))
 	}
 
-	if resBytes, err := json.Marshal(resultTx); err != nil {
+	txDataStr := getTxDataStr(resultTx.Tx.String())
+	txData, err := hex.DecodeString(txDataStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if stdTx, err := parseTxToStdTx(txData); err != nil {
 		t.Fatal(err)
 	} else {
-		t.Log(string(resBytes))
+		msgs := stdTx.Msgs
+		if len(msgs) > 0 {
+			txMsg := msgs[0]
+			switch txMsg.(type) {
+			case msg.SendMsg:
+				txMsg := txMsg.(msg.SendMsg)
+				t.Logf("tx msg is:\n %s\n", marshalJsonIgnoreError(txMsg))
+				break
+			default:
+				t.Log("unknown tx msg")
+			}
+		}
 	}
+}
+
+func getTxDataStr(txStr string) string {
+	prefix := "Tx{"
+	suffix := "}"
+	return strings.TrimSuffix(strings.TrimPrefix(txStr, prefix), suffix)
+}
+
+func parseTxToStdTx(txBytes []byte) (tx.StdTx, error) {
+	var txInfo tx.StdTx
+	txStructure, err := rpc.ParseTx(tx.Cdc, txBytes)
+	if err != nil {
+		return txInfo, err
+	}
+
+	switch txStructure.(type) {
+	case tx.StdTx:
+		txInfo = txStructure.(tx.StdTx)
+		return txInfo, nil
+	default:
+		return txInfo, fmt.Errorf("unkonwn txStructure")
+	}
+}
+
+func marshalJsonIgnoreError(v interface{}) string {
+	data, _ := json.Marshal(v)
+	return string(data)
 }
