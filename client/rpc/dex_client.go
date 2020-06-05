@@ -51,6 +51,10 @@ type DexClient interface {
 	GetSwapByCreator(creatorAddr string, offset int64, limit int64) ([]types.SwapBytes, error)
 	GetSwapByRecipient(recipientAddr string, offset int64, limit int64) ([]types.SwapBytes, error)
 
+	ListAllMiniTokens(offset int, limit int) ([]types.MiniToken, error)
+	GetMiniTokenInfo(symbol string) (*types.MiniToken, error)
+	GetMiniTradingPairs(offset int, limit int) ([]types.TradingPair, error)
+
 	SetKeyManager(k keys.KeyManager)
 	SendToken(transfers []msg.Transfer, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
 	CreateOrder(baseAssetSymbol, quoteAssetSymbol string, op int8, price, quantity int64, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
@@ -82,7 +86,7 @@ func (c *HTTP) ListAllTokens(offset int, limit int) ([]types.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !result.Response.IsOK(){
+	if !result.Response.IsOK() {
 		return nil, fmt.Errorf(result.Response.Log)
 	}
 	bz := result.Response.GetValue()
@@ -100,7 +104,7 @@ func (c *HTTP) GetTokenInfo(symbol string) (*types.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !result.Response.IsOK(){
+	if !result.Response.IsOK() {
 		return nil, fmt.Errorf(result.Response.Log)
 	}
 	bz := result.Response.GetValue()
@@ -165,6 +169,9 @@ func (c *HTTP) GetBalances(addr types.AccAddress) ([]types.TokenBalance, error) 
 	if err != nil {
 		return nil, err
 	}
+	if account == nil {
+		return []types.TokenBalance{}, nil
+	}
 	coins := account.GetCoins()
 
 	symbs := make([]string, 0, len(coins))
@@ -200,6 +207,14 @@ func (c *HTTP) GetBalance(addr types.AccAddress, symbol string) (*types.TokenBal
 	if err != nil {
 		return nil, err
 	}
+	if acc == nil {
+		return &types.TokenBalance{
+			Symbol: symbol,
+			Free:   types.Fixed8Zero,
+			Locked: types.Fixed8Zero,
+			Frozen: types.Fixed8Zero,
+		}, nil
+	}
 	var locked, frozen int64
 	nacc := acc.(types.NamedAccount)
 	if nacc != nil {
@@ -219,7 +234,7 @@ func (c *HTTP) GetFee() ([]types.FeeParam, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !rawFee.Response.IsOK(){
+	if !rawFee.Response.IsOK() {
 		return nil, fmt.Errorf(rawFee.Response.Log)
 	}
 	var fees []types.FeeParam
@@ -235,7 +250,7 @@ func (c *HTTP) GetOpenOrders(addr types.AccAddress, pair string) ([]types.OpenOr
 	if err != nil {
 		return nil, err
 	}
-	if !rawOrders.Response.IsOK(){
+	if !rawOrders.Response.IsOK() {
 		return nil, fmt.Errorf(rawOrders.Response.Log)
 	}
 	bz := rawOrders.Response.GetValue()
@@ -261,7 +276,7 @@ func (c *HTTP) GetTradingPairs(offset int, limit int) ([]types.TradingPair, erro
 	if err != nil {
 		return nil, err
 	}
-	if !rawTradePairs.Response.IsOK(){
+	if !rawTradePairs.Response.IsOK() {
 		return nil, fmt.Errorf(rawTradePairs.Response.Log)
 	}
 	pairs := make([]types.TradingPair, 0)
@@ -283,7 +298,7 @@ func (c *HTTP) GetDepth(tradePair string, level int) (*types.OrderBook, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !rawDepth.Response.IsOK(){
+	if !rawDepth.Response.IsOK() {
 		return nil, fmt.Errorf(rawDepth.Response.Log)
 	}
 	var ob types.OrderBook
@@ -314,7 +329,7 @@ func (c *HTTP) GetTimelocks(addr types.AccAddress) ([]types.TimeLockRecord, erro
 	if rawRecords == nil {
 		return nil, fmt.Errorf("zero records")
 	}
-	if !rawRecords.Response.IsOK(){
+	if !rawRecords.Response.IsOK() {
 		return nil, fmt.Errorf(rawRecords.Response.Log)
 	}
 	records := make([]types.TimeLockRecord, 0)
@@ -376,7 +391,7 @@ func (c *HTTP) GetProposals(status types.ProposalStatus, numLatest int64) ([]typ
 	if err != nil {
 		return nil, err
 	}
-	if !rawProposals.Response.IsOK(){
+	if !rawProposals.Response.IsOK() {
 		return nil, fmt.Errorf(rawProposals.Response.Log)
 	}
 	proposals := make([]types.Proposal, 0)
@@ -397,7 +412,7 @@ func (c *HTTP) GetProposal(proposalId int64) (types.Proposal, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !rawProposal.Response.IsOK(){
+	if !rawProposal.Response.IsOK() {
 		return nil, fmt.Errorf(rawProposal.Response.Log)
 	}
 	var proposal types.Proposal
@@ -519,6 +534,67 @@ func (c *HTTP) GetSwapByRecipient(recipientAddr string, offset int64, limit int6
 		return nil, err
 	}
 	return swapIDList, nil
+}
+
+func (c *HTTP) ListAllMiniTokens(offset int, limit int) ([]types.MiniToken, error) {
+	if err := ValidateOffset(offset); err != nil {
+		return nil, err
+	}
+	if err := ValidateLimit(limit); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("mini-tokens/list/%d/%d", offset, limit)
+	result, err := c.ABCIQuery(path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Response.IsOK() {
+		return nil, fmt.Errorf(result.Response.Log)
+	}
+	bz := result.Response.GetValue()
+	tokens := make([]types.MiniToken, 0)
+	err = c.cdc.UnmarshalBinaryLengthPrefixed(bz, &tokens)
+	return tokens, err
+}
+
+func (c *HTTP) GetMiniTokenInfo(symbol string) (*types.MiniToken, error) {
+	if err := ValidateSymbol(symbol); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("mini-tokens/info/%s", symbol)
+	result, err := c.ABCIQuery(path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Response.IsOK() {
+		return nil, fmt.Errorf(result.Response.Log)
+	}
+	bz := result.Response.GetValue()
+	token := new(types.MiniToken)
+	err = c.cdc.UnmarshalBinaryLengthPrefixed(bz, token)
+	return token, err
+}
+
+func (c *HTTP) GetMiniTradingPairs(offset int, limit int) ([]types.TradingPair, error) {
+	if err := ValidateLimit(limit); err != nil {
+		return nil, err
+	}
+	if err := ValidateOffset(offset); err != nil {
+		return nil, err
+	}
+	rawTradePairs, err := c.ABCIQuery(fmt.Sprintf("dex-mini/pairs/%d/%d", offset, limit), nil)
+	if err != nil {
+		return nil, err
+	}
+	if !rawTradePairs.Response.IsOK() {
+		return nil, fmt.Errorf(rawTradePairs.Response.Log)
+	}
+	pairs := make([]types.TradingPair, 0)
+	if rawTradePairs.Response.GetValue() == nil {
+		return pairs, nil
+	}
+	err = c.cdc.UnmarshalBinaryLengthPrefixed(rawTradePairs.Response.GetValue(), &pairs)
+	return pairs, err
 }
 
 func (c *HTTP) SendToken(transfers []msg.Transfer, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
@@ -693,6 +769,9 @@ func (c *HTTP) sign(m msg.Msg, options ...tx.Option) ([]byte, error) {
 		acc, err := c.GetAccount(fromAddr)
 		if err != nil {
 			return nil, err
+		}
+		if acc == nil {
+			return nil, fmt.Errorf("the signer account do not exist in the chain")
 		}
 		signMsg.Sequence = acc.GetSequence()
 		signMsg.AccountNumber = acc.GetAccountNumber()

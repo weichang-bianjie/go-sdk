@@ -399,7 +399,15 @@ func TestGetAccount(t *testing.T) {
 	bz, err := json.Marshal(account)
 	fmt.Println(string(bz))
 	fmt.Println(hex.EncodeToString(account.GetAddress().Bytes()))
+}
 
+func TestNoneExistGetAccount(t *testing.T) {
+	ctypes.Network = ctypes.TestNetwork
+	c := defaultClient()
+	acc, err := keys.NewKeyManager()
+	account, err := c.GetAccount(acc.GetAddr())
+	assert.NoError(t, err)
+	assert.Nil(t,account)
 }
 
 func TestGetBalances(t *testing.T) {
@@ -408,6 +416,17 @@ func TestGetBalances(t *testing.T) {
 	acc, err := ctypes.AccAddressFromBech32(testAddress)
 	assert.NoError(t, err)
 	balances, err := c.GetBalances(acc)
+	assert.Equal(t,0,len(balances))
+	assert.NoError(t, err)
+	bz, err := json.Marshal(balances)
+	fmt.Println(string(bz))
+}
+
+func TestNoneExistGetBalances(t *testing.T) {
+	ctypes.Network = ctypes.TestNetwork
+	c := defaultClient()
+	acc, _ := keys.NewKeyManager()
+	balances, err := c.GetBalances(acc.GetAddr())
 	assert.NoError(t, err)
 	bz, err := json.Marshal(balances)
 	fmt.Println(string(bz))
@@ -420,6 +439,19 @@ func TestGetBalance(t *testing.T) {
 	assert.NoError(t, err)
 	balance, err := c.GetBalance(acc, "BNB")
 	assert.NoError(t, err)
+	bz, err := json.Marshal(balance)
+	fmt.Println(string(bz))
+}
+
+func TestNoneExistGetBalance(t *testing.T) {
+	ctypes.Network = ctypes.TestNetwork
+	c := defaultClient()
+	acc, _ := keys.NewKeyManager()
+	balance, err := c.GetBalance(acc.GetAddr(), "BNB")
+	assert.NoError(t, err)
+	assert.Equal(t,ctypes.Fixed8Zero,balance.Free)
+	assert.Equal(t,ctypes.Fixed8Zero,balance.Locked)
+	assert.Equal(t,ctypes.Fixed8Zero,balance.Frozen)
 	bz, err := json.Marshal(balance)
 	fmt.Println(string(bz))
 }
@@ -559,4 +591,33 @@ func TestNoRequestLeakInGoodNetwork(t *testing.T) {
 	}
 	w.Wait()
 	assert.Equal(t, c.PendingRequest(), 0)
+}
+
+
+func TestListAllMiniTokens(t *testing.T) {
+	c := defaultClient()
+	tokens, err := c.ListAllMiniTokens(1, 10)
+	assert.NoError(t, err)
+	bz, err := json.Marshal(tokens)
+	fmt.Println(string(bz))
+}
+
+func TestGetMiniTokenInfo(t *testing.T) {
+	c := defaultClient()
+	tokens, err := c.ListAllMiniTokens(1, 10)
+	assert.NoError(t, err)
+	if len(tokens) > 0 {
+		token, err := c.GetMiniTokenInfo(tokens[0].Symbol)
+		assert.NoError(t, err)
+		bz, err := json.Marshal(token)
+		fmt.Println(string(bz))
+	}
+}
+
+func TestGetMiniTradePair(t *testing.T) {
+	c := defaultClient()
+	trades, err := c.GetMiniTradingPairs(0, 10)
+	assert.NoError(t, err)
+	bz, err := json.Marshal(trades)
+	fmt.Println(string(bz))
 }
