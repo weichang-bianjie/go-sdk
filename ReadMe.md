@@ -1,6 +1,5 @@
 # BNC Chain Go SDK
 
-
 The Binance Chain GO SDK provides a thin wrapper around the BNC Chain API for readonly endpoints, in addition to creating and submitting different transactions.
 It includes the following core components:
 
@@ -9,6 +8,9 @@ It includes the following core components:
 * **e2e** - end-to-end test package for go-sdk developer. For common users, it is also a good reference to use go-sdk. 
 * **keys** - implement `KeyManage` to manage private key and accounts.
 * **types** - core type of Binance Chain, such as `coin`, `account`, `tx` and `msg`.
+
+## Disclaimer
+**This branch is under active development, all subject to potential future change without notification and not ready for production use. The code and security audit have not been fully completed and not ready for any bug bounty.**
 
 ## Install
 
@@ -33,7 +35,7 @@ replace github.com/tendermint/go-amino => github.com/binance-chain/bnc-go-amino 
 ### Key Manager
 
 Before start using API, you should construct a Key Manager to help sign the transaction msg or verify signature.
-Key Manager is an Identity Manger to define who you are in the bnbchain. It provide following interface:
+Key Manager is an Identity Manager to define who you are in the bnbchain. It provide following interface:
 
 ```go
 type KeyManager interface {
@@ -47,7 +49,7 @@ type KeyManager interface {
 }
 ```
 
-We provide four construct functions to generate Key Manger:
+We provide four construct functions to generate Key Manager:
 ```go
 NewKeyManager() (KeyManager, error)
 
@@ -96,7 +98,7 @@ bip44Params := keys.NewBinanceBIP44Params(0, 0)
 keyManager, err := NewLedgerKeyManager(bip44Params.DerivationPath())
 ```
 
-We provide three export functions to persistent a Key Manger:
+We provide three export functions to persistent a Key Manager:
 
 ```go
 ExportAsMnemonic() (string, error)

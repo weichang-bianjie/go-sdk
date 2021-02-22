@@ -1,11 +1,15 @@
 package rpc
 
 import (
+	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/binance-chain/go-sdk/common"
 	"github.com/binance-chain/go-sdk/common/types"
+	sdk "github.com/binance-chain/go-sdk/common/types"
 	"github.com/binance-chain/go-sdk/keys"
 	gtypes "github.com/binance-chain/go-sdk/types"
 	"github.com/binance-chain/go-sdk/types/msg"
@@ -23,6 +27,9 @@ const (
 
 const (
 	AccountStoreName    = "acc"
+	OracleStoreName     = "oracle"
+	SideChainStoreName  = "sc"
+	BridgeStoreName     = "bridge"
 	ParamABCIPrefix     = "param"
 	TimeLockMsgRoute    = "timelock"
 	AtomicSwapStoreName = "atomic_swap"
@@ -31,6 +38,7 @@ const (
 )
 
 type DexClient interface {
+	Broadcast(m msg.Msg, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
 	TxInfoSearch(query string, prove bool, page, perPage int) ([]Info, error)
 	ListAllTokens(offset int, limit int) ([]types.Token, error)
 	GetTokenInfo(symbol string) (*types.Token, error)
@@ -44,12 +52,19 @@ type DexClient interface {
 	GetTradingPairs(offset int, limit int) ([]types.TradingPair, error)
 	GetDepth(tradePair string, level int) (*types.OrderBook, error)
 	GetProposals(status types.ProposalStatus, numLatest int64) ([]types.Proposal, error)
+	GetSideChainProposals(status types.ProposalStatus, numLatest int64, sideChainId string) ([]types.Proposal, error)
+	GetSideChainProposal(proposalId int64, sideChainId string) (types.Proposal, error)
 	GetProposal(proposalId int64) (types.Proposal, error)
 	GetTimelocks(addr types.AccAddress) ([]types.TimeLockRecord, error)
 	GetTimelock(addr types.AccAddress, recordID int64) (*types.TimeLockRecord, error)
 	GetSwapByID(swapID types.SwapBytes) (types.AtomicSwap, error)
 	GetSwapByCreator(creatorAddr string, offset int64, limit int64) ([]types.SwapBytes, error)
 	GetSwapByRecipient(recipientAddr string, offset int64, limit int64) ([]types.SwapBytes, error)
+	GetSideChainParams(sideChainId string) ([]msg.SCParam, error)
+
+	ListAllMiniTokens(offset int, limit int) ([]types.MiniToken, error)
+	GetMiniTokenInfo(symbol string) (*types.MiniToken, error)
+	GetMiniTradingPairs(offset int, limit int) ([]types.TradingPair, error)
 
 	SetKeyManager(k keys.KeyManager)
 	SendToken(transfers []msg.Transfer, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
@@ -61,6 +76,26 @@ type DexClient interface {
 		syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
 	ClaimHTLT(swapID []byte, randomNumber []byte, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
 	RefundHTLT(swapID []byte, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	TransferTokenOwnership(symbol string, newOwner types.AccAddress, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+
+	Bind(symbol string, amount int64, contractAddress msg.SmartChainAddress, contractDecimals int8, expireTime int64, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	Unbind(symbol string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	TransferOut(to msg.SmartChainAddress, amount types.Coin, expireTime int64, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+
+	Claim(chainId sdk.IbcChainID, sequence uint64, payload []byte, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	GetProphecy(chainId sdk.IbcChainID, sequence int64) (*msg.Prophecy, error)
+	GetCurrentOracleSequence(chainId sdk.IbcChainID) (int64, error)
+
+	SideChainVote(proposalID int64, option msg.VoteOption, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	SideChainDeposit(proposalID int64, amount types.Coins, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	SideChainSubmitSCParamsProposal(title string, scParam msg.SCChangeParams, initialDeposit types.Coins, votingPeriod time.Duration, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	SideChainSubmitCSCParamsProposal(title string, cscParam msg.CSCParamChange, initialDeposit types.Coins, votingPeriod time.Duration, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	SideChainSubmitProposal(title string, description string, proposalType msg.ProposalKind, initialDeposit types.Coins, votingPeriod time.Duration, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	SubmitListProposal(title string, param msg.ListTradingPairParams, proposalType msg.ProposalKind, initialDeposit types.Coins, votingPeriod time.Duration, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+
+	SubmitProposal(title string, description string, proposalType msg.ProposalKind, initialDeposit types.Coins, votingPeriod time.Duration, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	Deposit(proposalID int64, amount types.Coins, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
+	Vote(proposalID int64, option msg.VoteOption, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error)
 }
 
 func (c *HTTP) TxInfoSearch(query string, prove bool, page, perPage int) ([]Info, error) {
@@ -82,7 +117,7 @@ func (c *HTTP) ListAllTokens(offset int, limit int) ([]types.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !result.Response.IsOK(){
+	if !result.Response.IsOK() {
 		return nil, fmt.Errorf(result.Response.Log)
 	}
 	bz := result.Response.GetValue()
@@ -100,7 +135,7 @@ func (c *HTTP) GetTokenInfo(symbol string) (*types.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !result.Response.IsOK(){
+	if !result.Response.IsOK() {
 		return nil, fmt.Errorf(result.Response.Log)
 	}
 	bz := result.Response.GetValue()
@@ -165,6 +200,9 @@ func (c *HTTP) GetBalances(addr types.AccAddress) ([]types.TokenBalance, error) 
 	if err != nil {
 		return nil, err
 	}
+	if account == nil {
+		return []types.TokenBalance{}, nil
+	}
 	coins := account.GetCoins()
 
 	symbs := make([]string, 0, len(coins))
@@ -200,6 +238,14 @@ func (c *HTTP) GetBalance(addr types.AccAddress, symbol string) (*types.TokenBal
 	if err != nil {
 		return nil, err
 	}
+	if acc == nil {
+		return &types.TokenBalance{
+			Symbol: symbol,
+			Free:   types.Fixed8Zero,
+			Locked: types.Fixed8Zero,
+			Frozen: types.Fixed8Zero,
+		}, nil
+	}
 	var locked, frozen int64
 	nacc := acc.(types.NamedAccount)
 	if nacc != nil {
@@ -219,7 +265,7 @@ func (c *HTTP) GetFee() ([]types.FeeParam, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !rawFee.Response.IsOK(){
+	if !rawFee.Response.IsOK() {
 		return nil, fmt.Errorf(rawFee.Response.Log)
 	}
 	var fees []types.FeeParam
@@ -235,7 +281,7 @@ func (c *HTTP) GetOpenOrders(addr types.AccAddress, pair string) ([]types.OpenOr
 	if err != nil {
 		return nil, err
 	}
-	if !rawOrders.Response.IsOK(){
+	if !rawOrders.Response.IsOK() {
 		return nil, fmt.Errorf(rawOrders.Response.Log)
 	}
 	bz := rawOrders.Response.GetValue()
@@ -261,7 +307,7 @@ func (c *HTTP) GetTradingPairs(offset int, limit int) ([]types.TradingPair, erro
 	if err != nil {
 		return nil, err
 	}
-	if !rawTradePairs.Response.IsOK(){
+	if !rawTradePairs.Response.IsOK() {
 		return nil, fmt.Errorf(rawTradePairs.Response.Log)
 	}
 	pairs := make([]types.TradingPair, 0)
@@ -283,7 +329,7 @@ func (c *HTTP) GetDepth(tradePair string, level int) (*types.OrderBook, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !rawDepth.Response.IsOK(){
+	if !rawDepth.Response.IsOK() {
 		return nil, fmt.Errorf(rawDepth.Response.Log)
 	}
 	var ob types.OrderBook
@@ -314,7 +360,7 @@ func (c *HTTP) GetTimelocks(addr types.AccAddress) ([]types.TimeLockRecord, erro
 	if rawRecords == nil {
 		return nil, fmt.Errorf("zero records")
 	}
-	if !rawRecords.Response.IsOK(){
+	if !rawRecords.Response.IsOK() {
 		return nil, fmt.Errorf(rawRecords.Response.Log)
 	}
 	records := make([]types.TimeLockRecord, 0)
@@ -360,6 +406,14 @@ func (c *HTTP) GetTimelock(addr types.AccAddress, recordID int64) (*types.TimeLo
 }
 
 func (c *HTTP) GetProposals(status types.ProposalStatus, numLatest int64) ([]types.Proposal, error) {
+	return c.getProposals(status, "", numLatest)
+}
+
+func (c *HTTP) GetSideChainProposals(status types.ProposalStatus, numLatest int64, sideChainId string) ([]types.Proposal, error) {
+	return c.getProposals(status, sideChainId, numLatest)
+}
+
+func (c *HTTP) getProposals(status types.ProposalStatus, sideChainId string, numLatest int64) ([]types.Proposal, error) {
 	params := types.QueryProposalsParams{}
 	if status != types.StatusNil {
 		params.ProposalStatus = status
@@ -367,6 +421,7 @@ func (c *HTTP) GetProposals(status types.ProposalStatus, numLatest int64) ([]typ
 	if numLatest > 0 {
 		params.NumLatestProposals = numLatest
 	}
+	params.SideChainId = sideChainId
 
 	bz, err := c.cdc.MarshalJSON(&params)
 	if err != nil {
@@ -376,7 +431,7 @@ func (c *HTTP) GetProposals(status types.ProposalStatus, numLatest int64) ([]typ
 	if err != nil {
 		return nil, err
 	}
-	if !rawProposals.Response.IsOK(){
+	if !rawProposals.Response.IsOK() {
 		return nil, fmt.Errorf(rawProposals.Response.Log)
 	}
 	proposals := make([]types.Proposal, 0)
@@ -386,9 +441,18 @@ func (c *HTTP) GetProposals(status types.ProposalStatus, numLatest int64) ([]typ
 }
 
 func (c *HTTP) GetProposal(proposalId int64) (types.Proposal, error) {
+	return c.getProposal(proposalId, "")
+}
+
+func (c *HTTP) GetSideChainProposal(proposalId int64, sideChainId string) (types.Proposal, error) {
+	return c.getProposal(proposalId, sideChainId)
+}
+
+func (c *HTTP) getProposal(proposalId int64, sideChainId string) (types.Proposal, error) {
 	params := types.QueryProposalParams{
 		ProposalID: proposalId,
 	}
+	params.SideChainId = sideChainId
 	bz, err := c.cdc.MarshalJSON(params)
 	if err != nil {
 		return nil, err
@@ -397,13 +461,30 @@ func (c *HTTP) GetProposal(proposalId int64) (types.Proposal, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !rawProposal.Response.IsOK(){
+	if !rawProposal.Response.IsOK() {
 		return nil, fmt.Errorf(rawProposal.Response.Log)
 	}
 	var proposal types.Proposal
 
 	err = c.cdc.UnmarshalJSON(rawProposal.Response.GetValue(), &proposal)
 	return proposal, err
+}
+
+func (c *HTTP) GetSideChainParams(sideChainId string) ([]msg.SCParam, error) {
+	data, err := c.cdc.MarshalJSON(sideChainId)
+	if err != nil {
+		return nil, err
+	}
+	rawParams, err := c.ABCIQuery("param/sideParams", data)
+	if err != nil {
+		return nil, err
+	}
+	if !rawParams.Response.IsOK() {
+		return nil, fmt.Errorf(rawParams.Response.Log)
+	}
+	var params []msg.SCParam
+	err = c.cdc.UnmarshalJSON(rawParams.Response.GetValue(), &params)
+	return params, err
 }
 
 func (c *HTTP) existsCC(symbol string) bool {
@@ -521,6 +602,67 @@ func (c *HTTP) GetSwapByRecipient(recipientAddr string, offset int64, limit int6
 	return swapIDList, nil
 }
 
+func (c *HTTP) ListAllMiniTokens(offset int, limit int) ([]types.MiniToken, error) {
+	if err := ValidateOffset(offset); err != nil {
+		return nil, err
+	}
+	if err := ValidateLimit(limit); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("mini-tokens/list/%d/%d", offset, limit)
+	result, err := c.ABCIQuery(path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Response.IsOK() {
+		return nil, fmt.Errorf(result.Response.Log)
+	}
+	bz := result.Response.GetValue()
+	tokens := make([]types.MiniToken, 0)
+	err = c.cdc.UnmarshalBinaryLengthPrefixed(bz, &tokens)
+	return tokens, err
+}
+
+func (c *HTTP) GetMiniTokenInfo(symbol string) (*types.MiniToken, error) {
+	if err := ValidateSymbol(symbol); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("mini-tokens/info/%s", symbol)
+	result, err := c.ABCIQuery(path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Response.IsOK() {
+		return nil, fmt.Errorf(result.Response.Log)
+	}
+	bz := result.Response.GetValue()
+	token := new(types.MiniToken)
+	err = c.cdc.UnmarshalBinaryLengthPrefixed(bz, token)
+	return token, err
+}
+
+func (c *HTTP) GetMiniTradingPairs(offset int, limit int) ([]types.TradingPair, error) {
+	if err := ValidateLimit(limit); err != nil {
+		return nil, err
+	}
+	if err := ValidateOffset(offset); err != nil {
+		return nil, err
+	}
+	rawTradePairs, err := c.ABCIQuery(fmt.Sprintf("dex-mini/pairs/%d/%d", offset, limit), nil)
+	if err != nil {
+		return nil, err
+	}
+	if !rawTradePairs.Response.IsOK() {
+		return nil, fmt.Errorf(rawTradePairs.Response.Log)
+	}
+	pairs := make([]types.TradingPair, 0)
+	if rawTradePairs.Response.GetValue() == nil {
+		return pairs, nil
+	}
+	err = c.cdc.UnmarshalBinaryLengthPrefixed(rawTradePairs.Response.GetValue(), &pairs)
+	return pairs, err
+}
+
 func (c *HTTP) SendToken(transfers []msg.Transfer, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
 	if c.key == nil {
 		return nil, KeyMissingError
@@ -532,7 +674,7 @@ func (c *HTTP) SendToken(transfers []msg.Transfer, syncType SyncType, options ..
 		fromCoins = fromCoins.Plus(t.Coins)
 	}
 	sendMsg := msg.CreateSendMsg(fromAddr, fromCoins, transfers)
-	return c.broadcast(sendMsg, syncType, options...)
+	return c.Broadcast(sendMsg, syncType, options...)
 
 }
 
@@ -552,7 +694,7 @@ func (c *HTTP) CreateOrder(baseAssetSymbol, quoteAssetSymbol string, op int8, pr
 		price,
 		quantity,
 	)
-	return c.broadcast(newOrderMsg, syncType, options...)
+	return c.Broadcast(newOrderMsg, syncType, options...)
 }
 
 func (c *HTTP) HTLT(recipient types.AccAddress, recipientOtherChain, senderOtherChain string, randomNumberHash []byte, timestamp int64,
@@ -573,7 +715,7 @@ func (c *HTTP) HTLT(recipient types.AccAddress, recipientOtherChain, senderOther
 		heightSpan,
 		crossChain,
 	)
-	return c.broadcast(htltMsg, syncType, options...)
+	return c.Broadcast(htltMsg, syncType, options...)
 }
 
 func (c *HTTP) DepositHTLT(recipient types.AccAddress, swapID []byte, amount types.Coins,
@@ -587,7 +729,7 @@ func (c *HTTP) DepositHTLT(recipient types.AccAddress, swapID []byte, amount typ
 		swapID,
 		amount,
 	)
-	return c.broadcast(depositHTLTMsg, syncType, options...)
+	return c.Broadcast(depositHTLTMsg, syncType, options...)
 }
 
 func (c *HTTP) ClaimHTLT(swapID []byte, randomNumber []byte, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
@@ -600,7 +742,7 @@ func (c *HTTP) ClaimHTLT(swapID []byte, randomNumber []byte, syncType SyncType, 
 		swapID,
 		randomNumber,
 	)
-	return c.broadcast(claimHTLTMsg, syncType, options...)
+	return c.Broadcast(claimHTLTMsg, syncType, options...)
 }
 
 func (c *HTTP) RefundHTLT(swapID []byte, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
@@ -612,7 +754,118 @@ func (c *HTTP) RefundHTLT(swapID []byte, syncType SyncType, options ...tx.Option
 		fromAddr,
 		swapID,
 	)
-	return c.broadcast(refundHTLTMsg, syncType, options...)
+	return c.Broadcast(refundHTLTMsg, syncType, options...)
+}
+
+func (c *HTTP) TransferTokenOwnership(symbol string, newOwner types.AccAddress, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	fromAddr := c.key.GetAddr()
+	transferOwnershipMsg := msg.NewTransferOwnershipMsg(fromAddr, symbol, newOwner)
+	return c.Broadcast(transferOwnershipMsg, syncType, options...)
+}
+
+func (c *HTTP) SideChainVote(proposalID int64, option msg.VoteOption, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewSideChainVoteMsg(fromAddr, proposalID, option, sideChainId)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) SideChainDeposit(proposalID int64, amount types.Coins, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewSideChainDepositMsg(fromAddr, proposalID, amount, sideChainId)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) SideChainSubmitSCParamsProposal(title string, scParam msg.SCChangeParams, initialDeposit types.Coins, votingPeriod time.Duration, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	err := scParam.Check()
+	if err != nil {
+		return nil, err
+	}
+	scParamsBz, err := c.cdc.MarshalJSON(scParam)
+	if err != nil {
+		return nil, err
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewSideChainSubmitProposalMsg(title, string(scParamsBz), msg.ProposalTypeSCParamsChange, fromAddr, initialDeposit, votingPeriod, sideChainId)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) SideChainSubmitCSCParamsProposal(title string, cscParam msg.CSCParamChange, initialDeposit types.Coins, votingPeriod time.Duration, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	err := cscParam.Check()
+	if err != nil {
+		return nil, err
+	}
+	// cscParam get interface field, use amino
+	cscParamsBz, err := c.cdc.MarshalJSON(cscParam)
+	if err != nil {
+		return nil, err
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewSideChainSubmitProposalMsg(title, string(cscParamsBz), msg.ProposalTypeCSCParamsChange, fromAddr, initialDeposit, votingPeriod, sideChainId)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) SideChainSubmitProposal(title string, description string, proposalType msg.ProposalKind, initialDeposit types.Coins, votingPeriod time.Duration, sideChainId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewSideChainSubmitProposalMsg(title, description, proposalType, fromAddr, initialDeposit, votingPeriod, sideChainId)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) SubmitListProposal(title string, param msg.ListTradingPairParams, proposalType msg.ProposalKind, initialDeposit types.Coins, votingPeriod time.Duration, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	bz, err := json.Marshal(&param)
+	if err != nil {
+		return nil, err
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewMsgSubmitProposal(title, string(bz), proposalType, fromAddr, initialDeposit, votingPeriod)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) SubmitProposal(title string, description string, proposalType msg.ProposalKind, initialDeposit types.Coins, votingPeriod time.Duration, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewMsgSubmitProposal(title, description, proposalType, fromAddr, initialDeposit, votingPeriod)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) Deposit(proposalID int64, amount types.Coins, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewDepositMsg(fromAddr, proposalID, amount)
+	return c.Broadcast(msg, syncType, options...)
+}
+
+func (c *HTTP) Vote(proposalID int64, option msg.VoteOption, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+	fromAddr := c.key.GetAddr()
+	msg := msg.NewMsgVote(fromAddr, proposalID, option)
+	return c.Broadcast(msg, syncType, options...)
 }
 
 func (c *HTTP) CancelOrder(baseAssetSymbol, quoteAssetSymbol, refId string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
@@ -629,10 +882,45 @@ func (c *HTTP) CancelOrder(baseAssetSymbol, quoteAssetSymbol, refId string, sync
 	fromAddr := c.key.GetAddr()
 
 	cancelOrderMsg := msg.NewCancelOrderMsg(fromAddr, common.CombineSymbol(baseAssetSymbol, quoteAssetSymbol), refId)
-	return c.broadcast(cancelOrderMsg, syncType, options...)
+	return c.Broadcast(cancelOrderMsg, syncType, options...)
 }
 
-func (c *HTTP) broadcast(m msg.Msg, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+func (c *HTTP) TransferOut(to msg.SmartChainAddress, amount types.Coin, expireTime int64, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+
+	fromAddr := c.key.GetAddr()
+
+	transferOutMsg := msg.NewTransferOutMsg(fromAddr, to, amount, expireTime)
+
+	return c.Broadcast(transferOutMsg, syncType, options...)
+}
+
+func (c *HTTP) Bind(symbol string, amount int64, contractAddress msg.SmartChainAddress, contractDecimals int8, expireTime int64, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+
+	fromAddr := c.key.GetAddr()
+
+	bindMsg := msg.NewBindMsg(fromAddr, symbol, amount, contractAddress, contractDecimals, expireTime)
+
+	return c.Broadcast(bindMsg, syncType, options...)
+}
+
+func (c *HTTP) Unbind(symbol string, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+
+	fromAddr := c.key.GetAddr()
+
+	unbindMsg := msg.NewUnbindMsg(fromAddr, symbol)
+	return c.Broadcast(unbindMsg, syncType, options...)
+}
+
+func (c *HTTP) Broadcast(m msg.Msg, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
 	signBz, err := c.sign(m, options...)
 	if err != nil {
 		return nil, err
@@ -666,14 +954,68 @@ func (c *HTTP) broadcast(m msg.Msg, syncType SyncType, options ...tx.Option) (*c
 	}
 }
 
+func (c *HTTP) Claim(chainId sdk.IbcChainID, sequence uint64, payload []byte, syncType SyncType, options ...tx.Option) (*core_types.ResultBroadcastTx, error) {
+	if c.key == nil {
+		return nil, KeyMissingError
+	}
+
+	fromAddr := c.key.GetAddr()
+
+	claimMsg := msg.NewClaimMsg(chainId, sequence, payload, fromAddr)
+
+	return c.Broadcast(claimMsg, syncType, options...)
+}
+
+func (c *HTTP) GetProphecy(chainId sdk.IbcChainID, sequence int64) (*msg.Prophecy, error) {
+	key := []byte(msg.GetClaimId(chainId, msg.OracleChannelId, sequence))
+	bz, err := c.QueryStore(key, OracleStoreName)
+	if err != nil {
+		return nil, err
+	}
+	if bz == nil {
+		return nil, nil
+	}
+
+	dbProphecy := new(msg.DBProphecy)
+	err = c.cdc.UnmarshalBinaryBare(bz, &dbProphecy)
+	if err != nil {
+		return nil, err
+	}
+
+	prophecy, err := dbProphecy.DeserializeFromDB()
+	if err != nil {
+		return nil, err
+	}
+
+	return &prophecy, err
+}
+
+func (c *HTTP) GetCurrentOracleSequence(chainId sdk.IbcChainID) (int64, error) {
+	key := types.GetReceiveSequenceKey(chainId, msg.OracleChannelId)
+	bz, err := c.QueryStore(key, SideChainStoreName)
+	if err != nil {
+		return 0, err
+	}
+	if bz == nil {
+		return 0, nil
+	}
+
+	sequence := binary.BigEndian.Uint64(bz)
+	return int64(sequence), err
+}
+
 func (c *HTTP) sign(m msg.Msg, options ...tx.Option) ([]byte, error) {
 	if c.key == nil {
 		return nil, fmt.Errorf("keymanager is missing, use SetKeyManager to set key")
 	}
 	// prepare message to sign
 	chainID := gtypes.ProdChainID
-	if types.Network != types.ProdNetwork {
+	if types.Network == types.TestNetwork {
 		chainID = gtypes.TestnetChainID
+	} else if types.Network == types.TmpTestNetwork {
+		chainID = gtypes.KongoChainId
+	} else if types.Network == types.GangesNetwork {
+		chainID = gtypes.GangesChainId
 	}
 	signMsg := &tx.StdSignMsg{
 		ChainID:       chainID,
@@ -693,6 +1035,9 @@ func (c *HTTP) sign(m msg.Msg, options ...tx.Option) ([]byte, error) {
 		acc, err := c.GetAccount(fromAddr)
 		if err != nil {
 			return nil, err
+		}
+		if acc == nil {
+			return nil, fmt.Errorf("the signer account do not exist in the chain")
 		}
 		signMsg.Sequence = acc.GetSequence()
 		signMsg.AccountNumber = acc.GetAccountNumber()

@@ -31,6 +31,7 @@ type TransactionClient interface {
 	IssueToken(name, symbol string, supply int64, sync bool, mintable bool, options ...Option) (*IssueTokenResult, error)
 	SendToken(transfers []msg.Transfer, sync bool, options ...Option) (*SendTokenResult, error)
 	MintToken(symbol string, amount int64, sync bool, options ...Option) (*MintTokenResult, error)
+	TransferTokenOwnership(symbol string, newOwner types.AccAddress, sync bool, options ...Option) (*TransferTokenOwnershipResult, error)
 	TimeLock(description string, amount types.Coins, lockTime int64, sync bool, options ...Option) (*TimeLockResult, error)
 	TimeUnLock(id int64, sync bool, options ...Option) (*TimeUnLockResult, error)
 	TimeReLock(id int64, description string, amount types.Coins, lockTime int64, sync bool, options ...Option) (*TimeReLockResult, error)
@@ -45,6 +46,11 @@ type TransactionClient interface {
 	SubmitProposal(title string, description string, proposalType msg.ProposalKind, initialDeposit int64, votingPeriod time.Duration, sync bool, options ...Option) (*SubmitProposalResult, error)
 	DepositProposal(proposalID int64, amount int64, sync bool, options ...Option) (*DepositProposalResult, error)
 	VoteProposal(proposalID int64, option msg.VoteOption, sync bool, options ...Option) (*VoteProposalResult, error)
+
+	IssueMiniToken(name, symbol string, supply int64, sync bool, mintable bool, tokenURI string, options ...Option) (*IssueMiniTokenResult, error)
+	IssueTinyToken(name, symbol string, supply int64, sync bool, mintable bool, tokenURI string, options ...Option) (*IssueTinyTokenResult, error)
+	ListMiniPair(baseAssetSymbol string, quoteAssetSymbol string, initPrice int64, sync bool, options ...Option) (*ListMiniPairResult, error)
+	SetURI(symbol, tokenURI string, sync bool, options ...Option) (*SetUriResult, error)
 
 	GetKeyManager() keys.KeyManager
 }
