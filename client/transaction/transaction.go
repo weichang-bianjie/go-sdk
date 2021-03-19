@@ -38,6 +38,7 @@ type TransactionClient interface {
 	SetAccountFlags(flags uint64, sync bool, options ...Option) (*SetAccountFlagsResult, error)
 	AddAccountFlags(flagOptions []types.FlagOption, sync bool, options ...Option) (*SetAccountFlagsResult, error)
 	HTLT(recipient types.AccAddress, recipientOtherChain, senderOtherChain string, randomNumberHash []byte, timestamp int64, amount types.Coins, expectedIncome string, heightSpan int64, crossChain bool, sync bool, options ...Option) (*HTLTResult, error)
+	HTLTSignedTx(recipient types.AccAddress, recipientOtherChain, senderOtherChain string, randomNumberHash []byte, timestamp int64, amount types.Coins, expectedIncome string, heightSpan int64, crossChain bool, options ...Option) (string, error)
 	DepositHTLT(swapID []byte, amount types.Coins, sync bool, options ...Option) (*DepositHTLTResult, error)
 	ClaimHTLT(swapID []byte, randomNumber []byte, sync bool, options ...Option) (*ClaimHTLTResult, error)
 	RefundHTLT(swapID []byte, sync bool, options ...Option) (*RefundHTLTResult, error)
@@ -125,4 +126,49 @@ func (c *client) broadcastMsg(m msg.Msg, sync bool, options ...Option) (*tx.TxCo
 		return nil, fmt.Errorf("Len of tx Commit result is less than 1 ")
 	}
 	return &commits[0], nil
+}
+
+func (c *client) getSignedTx(m msg.Msg, options ...Option) (string, error) {
+	// prepare message to sign
+	signMsg := &tx.StdSignMsg{
+		ChainID:       c.chainId,
+		AccountNumber: -1,
+		Sequence:      -1,
+		Memo:          "",
+		Msgs:          []msg.Msg{m},
+		Source:        tx.Source,
+	}
+
+	for _, op := range options {
+		signMsg = op(signMsg)
+	}
+
+	if signMsg.Sequence == -1 || signMsg.AccountNumber == -1 {
+		fromAddr := c.keyManager.GetAddr()
+		acc, err := c.queryClient.GetAccount(fromAddr.String())
+		if err != nil {
+			return "", err
+		}
+		signMsg.Sequence = acc.Sequence
+		signMsg.AccountNumber = acc.Number
+	}
+
+	// special logic for createOrder, to save account query
+	if orderMsg, ok := m.(msg.CreateOrderMsg); ok {
+		orderMsg.ID = msg.GenerateOrderID(signMsg.Sequence+1, c.keyManager.GetAddr())
+		signMsg.Msgs[0] = orderMsg
+	}
+
+	for _, m := range signMsg.Msgs {
+		if err := m.ValidateBasic(); err != nil {
+			return "", err
+		}
+	}
+
+	rawBz, err := c.keyManager.Sign(*signMsg)
+	if err != nil {
+		return "", err
+	}
+	// Hex encoded signed transaction, ready to be posted to BncChain API
+	return hex.EncodeToString(rawBz), nil
 }
