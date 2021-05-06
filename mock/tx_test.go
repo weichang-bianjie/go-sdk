@@ -20,7 +20,7 @@ import (
 //var (
 //	networkType = types.ProdNetwork
 //	dexUrl      = "dex.binance.org"
-//	nodeUrl     = "tcp://seed1.4leapbnb.com:80"
+//	nodeUrl     = "tcp://seed1.longevito.io:80"
 //)
 
 var (
@@ -178,7 +178,7 @@ func TestSendToken(t *testing.T) {
 }
 
 func TestGetTxDetail(t *testing.T) {
-	txHash := "193B0E7C89D5EC3C16FF81949F1EB471C2E0E4245EAA21DD6018F9ADBE36E9F7"
+	txHash := "A8A5A57DCB0AF1FCEB2A4114F88067AB48E11D45C5E7DE66504969AD437DF4FB"
 	txHashBytes, err := hex.DecodeString(txHash)
 	if err != nil {
 		t.Fatal(err)
