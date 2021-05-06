@@ -24,4 +24,4 @@ replace github.com/tendermint/go-amino => github.com/binance-chain/bnc-go-amino 
 
 replace github.com/zondax/ledger-go => github.com/binance-chain/ledger-go v0.9.1
 
-go 1.13
+		go 1.15
