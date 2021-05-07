@@ -26,7 +26,7 @@ import (
 var (
 	networkType = types.TestNetwork
 	dexUrl      = "testnet-dex.binance.org"
-	nodeUrl     = "tcp://seed-pre-s3.binance.org:80"
+	nodeUrl     = "tcp://data-seed-pre-0-s1.binance.org:80"
 )
 
 var (
@@ -84,9 +84,13 @@ func TestRecoverFromKeyStore(t *testing.T) {
 }
 
 func TestHTLTRefund(t *testing.T) {
-	swapId := ""
+	swapId := "aa9c9eb100d7b0340c6f35949398b1103a9052ef90afac8c4ade011f3ca29074"
+	swapIdBytes, err := hex.DecodeString(swapId)
+	if err != nil {
+		t.Fatal(err)
+	}
 	option := transaction.WithMemo("")
-	sendResult, err := dexClient.RefundHTLT([]byte(swapId), true, option)
+	sendResult, err := dexClient.RefundHTLT(swapIdBytes, true, option)
 	if err != nil {
 		t.Fatalf("refund htlt tx failed, swapId: %s, err: %s\n", swapId, err.Error())
 	} else {
