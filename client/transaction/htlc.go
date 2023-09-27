@@ -27,7 +27,7 @@ func (c *client) HTLT(recipient types.AccAddress, recipientOtherChain, senderOth
 	)
 	commit, err := c.broadcastMsg(htltMsg, sync, options...)
 	if err != nil {
-		return nil, err
+		return &HTLTResult{*commit}, err
 	}
 	return &HTLTResult{*commit}, nil
 }
@@ -64,7 +64,7 @@ func (c *client) ClaimHTLT(swapID []byte, randomNumber []byte, sync bool, option
 	)
 	commit, err := c.broadcastMsg(claimHTLTMsg, sync, options...)
 	if err != nil {
-		return nil, err
+		return &ClaimHTLTResult{*commit}, err
 	}
 	return &ClaimHTLTResult{*commit}, nil
 }
@@ -81,7 +81,7 @@ func (c *client) RefundHTLT(swapID []byte, sync bool, options ...Option) (*Refun
 	)
 	commit, err := c.broadcastMsg(refundHTLTMsg, sync, options...)
 	if err != nil {
-		return nil, err
+		return &RefundHTLTResult{*commit}, err
 	}
 	return &RefundHTLTResult{*commit}, nil
 }
