@@ -3,6 +3,8 @@ package transaction
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/tendermint/tendermint/crypto/tmhash"
+	"strings"
 	"time"
 
 	"github.com/binance-chain/go-sdk/client/basic"
@@ -111,12 +113,17 @@ func (c *client) broadcastMsg(m msg.Msg, sync bool, options ...Option) (*tx.TxCo
 	if sync {
 		param["sync"] = "true"
 	}
+	ret := tx.TxCommitResult{}
+	ret.Hash = strings.ToUpper(hex.EncodeToString(tmhash.Sum(rawBz)))
 	commits, err := c.basicClient.PostTx(hexTx, param)
 	if err != nil {
-		return nil, err
+		return &ret, err
 	}
 	if len(commits) < 1 {
-		return nil, fmt.Errorf("Len of tx Commit result is less than 1 ")
+		return &ret, fmt.Errorf("Len of tx Commit result is less than 1 ")
+	}
+	if commits[0].Hash != ret.Hash {
+		fmt.Printf("commits[0].Hash(%s) != ret.Hash(%s)\n", commits[0].Hash, ret.Hash)
 	}
 	return &commits[0], nil
 }
