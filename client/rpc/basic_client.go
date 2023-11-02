@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"fmt"
+	"github.com/tendermint/tendermint/crypto/tmhash"
 	"time"
 
 	"github.com/pkg/errors"
@@ -113,21 +114,39 @@ func (c *HTTP) BroadcastTxCommit(tx types.Tx) (*ResultBroadcastTxCommit, error) 
 	if err := ValidateTx(tx); err != nil {
 		return nil, err
 	}
-	return c.WSEvents.BroadcastTxCommit(tx)
+	txHash := cmn.HexBytes(tmhash.Sum(tx))
+	res, err := c.WSEvents.BroadcastTxCommit(tx)
+	if res != nil && len(res.Hash) == 0 {
+		res.Hash = txHash
+		return res, err
+	}
+	return &ResultBroadcastTxCommit{Hash: txHash}, err
 }
 
 func (c *HTTP) BroadcastTxAsync(tx types.Tx) (*ctypes.ResultBroadcastTx, error) {
 	if err := ValidateTx(tx); err != nil {
 		return nil, err
 	}
-	return c.WSEvents.BroadcastTx("broadcast_tx_async", tx)
+	txHash := cmn.HexBytes(tmhash.Sum(tx))
+	res, err := c.WSEvents.BroadcastTx("broadcast_tx_async", tx)
+	if res != nil && len(res.Hash) == 0 {
+		res.Hash = txHash
+		return res, err
+	}
+	return &ctypes.ResultBroadcastTx{Hash: txHash}, err
 }
 
 func (c *HTTP) BroadcastTxSync(tx types.Tx) (*ctypes.ResultBroadcastTx, error) {
 	if err := ValidateTx(tx); err != nil {
 		return nil, err
 	}
-	return c.WSEvents.BroadcastTx("broadcast_tx_sync", tx)
+	txHash := cmn.HexBytes(tmhash.Sum(tx))
+	res, err := c.WSEvents.BroadcastTx("broadcast_tx_sync", tx)
+	if res != nil && len(res.Hash) == 0 {
+		res.Hash = txHash
+		return res, err
+	}
+	return &ctypes.ResultBroadcastTx{Hash: txHash}, err
 }
 
 func (c *HTTP) UnconfirmedTxs(limit int) (*ctypes.ResultUnconfirmedTxs, error) {
