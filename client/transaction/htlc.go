@@ -34,6 +34,27 @@ func (c *client) HTLT(recipient types.AccAddress, recipientOtherChain, senderOth
 	}
 	return &HTLTResult{*commit}, nil
 }
+func (c *client) HTLTSignedTx(recipient types.AccAddress, recipientOtherChain, senderOtherChain string, randomNumberHash []byte, timestamp int64,
+	amount types.Coins, expectedIncome string, heightSpan int64, crossChain bool, sync bool, options ...Option) ([]byte, error) {
+	fromAddr := c.keyManager.GetAddr()
+	htltMsg := msg.NewHTLTMsg(
+		fromAddr,
+		recipient,
+		recipientOtherChain,
+		senderOtherChain,
+		randomNumberHash,
+		timestamp,
+		amount,
+		expectedIncome,
+		heightSpan,
+		crossChain,
+	)
+	signedTx, err := c.SignedTx(htltMsg, sync, options...)
+	if err != nil {
+		return nil, err
+	}
+	return signedTx, nil
+}
 
 type DepositHTLTResult struct {
 	tx.TxCommitResult

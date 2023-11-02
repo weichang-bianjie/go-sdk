@@ -3,6 +3,7 @@ package transaction
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/binance-chain/go-sdk/client/rpc"
 	"github.com/tendermint/tendermint/crypto/tmhash"
 	"strings"
 	"time"
@@ -38,6 +39,8 @@ type TransactionClient interface {
 	TimeReLock(id int64, description string, amount types.Coins, lockTime int64, sync bool, options ...Option) (*TimeReLockResult, error)
 	SetAccountFlags(flags uint64, sync bool, options ...Option) (*SetAccountFlagsResult, error)
 	AddAccountFlags(flagOptions []types.FlagOption, sync bool, options ...Option) (*SetAccountFlagsResult, error)
+	HTLTSignedTx(recipient types.AccAddress, recipientOtherChain, senderOtherChain string, randomNumberHash []byte, timestamp int64,
+		amount types.Coins, expectedIncome string, heightSpan int64, crossChain bool, sync bool, options ...Option) ([]byte, error)
 	HTLT(recipient types.AccAddress, recipientOtherChain, senderOtherChain string, randomNumberHash []byte, timestamp int64, amount types.Coins, expectedIncome string, heightSpan int64, crossChain bool, sync bool, options ...Option) (*HTLTResult, error)
 	DepositHTLT(swapID []byte, amount types.Coins, sync bool, options ...Option) (*DepositHTLTResult, error)
 	ClaimHTLT(swapID []byte, randomNumber []byte, sync bool, options ...Option) (*ClaimHTLTResult, error)
@@ -126,4 +129,49 @@ func (c *client) broadcastMsg(m msg.Msg, sync bool, options ...Option) (*tx.TxCo
 		fmt.Printf("commits[0].Hash(%s) != ret.Hash(%s)\n", commits[0].Hash, ret.Hash)
 	}
 	return &commits[0], nil
+}
+
+func (c *client) SignedTx(m msg.Msg, sync bool, options ...Option) ([]byte, error) {
+	// prepare message to sign
+	signMsg := &tx.StdSignMsg{
+		ChainID:       c.chainId,
+		AccountNumber: -1,
+		Sequence:      -1,
+		Memo:          "",
+		Msgs:          []msg.Msg{m},
+		Source:        tx.Source,
+	}
+
+	for _, op := range options {
+		signMsg = op(signMsg)
+	}
+
+	if signMsg.Sequence == -1 || signMsg.AccountNumber == -1 {
+		fromAddr := c.keyManager.GetAddr()
+		acc, err := rpc.NewRPCClient("tcp://data-seed-pre-2-s1.bnbchain.org:80", types.TestNetwork).GetAccount(fromAddr)
+		//acc, err := c.queryClient.GetAccount(fromAddr.String())
+		if err != nil {
+			return nil, err
+		}
+		signMsg.Sequence = acc.GetSequence()
+		signMsg.AccountNumber = acc.GetAccountNumber()
+	}
+
+	// special logic for createOrder, to save account query
+	if orderMsg, ok := m.(msg.CreateOrderMsg); ok {
+		orderMsg.ID = msg.GenerateOrderID(signMsg.Sequence+1, c.keyManager.GetAddr())
+		signMsg.Msgs[0] = orderMsg
+	}
+
+	for _, m := range signMsg.Msgs {
+		if err := m.ValidateBasic(); err != nil {
+			return nil, err
+		}
+	}
+
+	rawBz, err := c.keyManager.Sign(*signMsg)
+	if err != nil {
+		return nil, err
+	}
+	return rawBz, nil
 }

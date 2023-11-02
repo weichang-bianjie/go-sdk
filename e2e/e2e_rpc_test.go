@@ -5,7 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/binance-chain/go-sdk/types/tx"
+	"io"
 	"math/rand"
+	"net/http"
 	"os/exec"
 	"sync"
 	"testing"
@@ -23,15 +26,15 @@ import (
 )
 
 var (
-	nodeAddr           = "tcp://data-seed-pre-0-s3.binance.org:80"
+	nodeAddr           = "tcp://data-seed-pre-2-s1.bnbchain.org:80"
 	badAddr            = "tcp://127.0.0.1:80"
-	testTxHash         = "F45BAB1BA5B79609F7307A64AD1F84ECFAF73D1F2C2D010D17F41303BC1B00CA"
+	testTxHash         = "073D00B80A516AA0B1F522F76C5FAED486223A4FA432AF37B51C28B63CCD5C11"
 	testTxHeight       = int64(47905085)
-	testAddress        = "tbnb1e803p76n4rtyeclef7pg3295nurwfuwsw8l36m"
+	testAddress        = "tbnb1cegl4x48qy6mq5vg5wtryk806n2vjtyhk3sj6v"
 	testDelAddr        = "tbnb12hlquylu78cjylk5zshxpdj6hf3t0tahwjt3ex"
 	testTradePair      = "PPC-00A_BNB"
 	testTradeSymbol    = "000-0E1"
-	testTxStr          = "xxx"
+	testTxStr          = "db01f0625dee0a63ce6dc0430a14813e4939f1567b219704ffc2ad4df58bde010879122b383133453439333946313536374232313937303446464332414434444635384244453031303837392d34341a0d5a454252412d3136445f424e422002280130c0843d38904e400112700a26eb5ae9872102139bdd95de72c22ac2a2b0f87853b1cca2e8adf9c58a4a689c75d3263013441a124015e99f7a686529c76ccc2d70b404af82ca88dfee27c363439b91ea0280571b2731c03b902193d6a5793baf64b54bcdf3f85e0d7cf657e1a1077f88143a5a65f518d2e518202b"
 	mnemonic           = "test mnemonic"
 	onceClient         = sync.Once{}
 	testClientInstance *rpc.HTTP
@@ -462,13 +465,10 @@ func TestGetDepth(t *testing.T) {
 
 func TestSendToken(t *testing.T) {
 	c := defaultClient()
-	ctypes.Network = ctypes.TestNetwork
-	keyManager, err := keys.NewMnemonicKeyManager(mnemonic)
-	assert.NoError(t, err)
-	c.SetKeyManager(keyManager)
+
 	testacc, err := ctypes.AccAddressFromBech32(testAddress)
 	assert.NoError(t, err)
-	res, err := c.SendToken([]msg.Transfer{{testacc, []ctypes.Coin{{"BNB", 100000}}}}, rpc.Sync, transaction.WithMemo("123"))
+	res, err := c.SendToken([]msg.Transfer{{testacc, []ctypes.Coin{{"BNB", 10000}}}}, rpc.Sync, transaction.WithMemo("123"))
 	assert.NoError(t, err)
 	bz, err := json.Marshal(res)
 	fmt.Println(string(bz))
@@ -559,4 +559,138 @@ func TestNoRequestLeakInGoodNetwork(t *testing.T) {
 	}
 	w.Wait()
 	assert.Equal(t, c.PendingRequest(), 0)
+}
+func parseTxToStdTx(txBytes []byte) (tx.StdTx, error) {
+	var parsedTx tx.StdTx
+	err := tx.Cdc.UnmarshalBinaryLengthPrefixed(txBytes, &parsedTx)
+
+	if err != nil {
+		return parsedTx, err
+	}
+
+	return parsedTx, nil
+}
+func TestBroadCast(t *testing.T) {
+	databytes, _ := hex.DecodeString("c402f0625dee0acb01b33f9a240a14a71cd5db2a70a5ea65178ef901cf3e479b48157e12141e599a39c9cc29c88cf701f96dea4efd1cb0a7ae1a2a696161316571766b667468747272393367347039717370703534773664746a74726e3237617237727077222a696161316c6a656d6d30797a6e7a353871787873387879616b376661736863667866356c676c347a6a782a209aaacb5bbffc253827390bd624330164474f6cbb82d4d407d0437ceb958172323080bc8daa063a090a03424e4210a08d064209313030303030424e4248e802500112700a26eb5ae987210387b265b8848792259340637060e4be296eae8e9d0e6d7c1a5a6d4e4f197b40bc1240a1766282cd4ffdaa744763dd0d1acf3b8d86d8e444a1d3a5bc5ca64dd705b9e4042016177c72b898d6e203bd6ace377559bf5ff4b081e8654b45b752f1535c4218bcf4012025")
+	stdTx, err := parseTxToStdTx(databytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retbytes, _ := json.Marshal(stdTx)
+	t.Log(string(retbytes))
+
+	var (
+		ksFilePath = "/Users/user/Downloads/QA_Binance_Withdraw_Admin@123456_keystore.txt"
+		ksAuth     = "Admin@123456"
+		rpcClient  *rpc.HTTP
+	)
+
+	if km, err := keys.NewKeyStoreKeyManager(ksFilePath, ksAuth); err != nil {
+		panic(err)
+	} else {
+
+		rpcClient = rpc.NewRPCClient(nodeAddr, ctypes.TestNetwork)
+		rpcClient.SetKeyManager(km)
+		if _, err := rpcClient.Status(); err != nil {
+			fmt.Printf("init rpc client fail, err is %s\n", err.Error())
+			panic(err)
+		}
+		fmt.Println("Km:", km.GetAddr().String())
+	}
+	data, err := rpcClient.BroadcastTxSync(databytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retbytes, _ = json.Marshal(data)
+	t.Log(string(retbytes))
+	fmt.Println(string(retbytes))
+	fmt.Println(data.Hash.String())
+}
+func Post(url string, body string) (bz []byte, err error) {
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("StatusCode != 200, code:%v", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+
+	bz, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return
+}
+
+func TestHtlt(t *testing.T) {
+	var (
+		ksFilePath = "/Users/user/Downloads/QA_Binance_Withdraw_Admin@123456_keystore.txt"
+		ksAuth     = "Admin@123456"
+		rpcClient  *rpc.HTTP
+	)
+	km, err := keys.NewKeyStoreKeyManager(ksFilePath, ksAuth)
+	if err != nil {
+		panic(err)
+	} else {
+
+		rpcClient = rpc.NewRPCClient(nodeAddr, ctypes.TestNetwork)
+		rpcClient.SetKeyManager(km)
+		if _, err := rpcClient.Status(); err != nil {
+			fmt.Printf("init rpc client fail, err is %s\n", err.Error())
+			panic(err)
+		}
+		fmt.Println("Km:", km.GetAddr().String())
+	}
+
+	var data struct {
+		Data struct {
+			Id        uint64 `json:"id"`
+			Hashlock  string `json:"hashlock"`
+			Timestamp uint64 `json:"timestamp"`
+		} `json:"data"`
+	}
+	bytedata, err := Post("http://localhost:8081/htlts", "{\"address\":\"iaa1eqvkfthtrr93g4p9qspp54w6dtjtrn27ar7rpw\",\"amount\":{\"denom\":\"BNB\",\"amount\":100000},\"sc_chain\":\"binance\",\"dc_chain\":\"iris\"}")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	err = json.Unmarshal(bytedata, &data)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	fmt.Println(string(bytedata))
+
+	//amount := ctypes.Coin{"BUSD-BAF", 100000}
+	//deputy := "iaa1l7qf5gjxsygp9a59dm2xsjjwdelrf7yne5rl20"
+
+	amount := ctypes.Coin{"BNB", 100000}
+	deputy := "iaa1ljemm0yznz58qxxs8xyak7fashcfxf5lgl4zjx"
+
+	recipient, _ := ctypes.AccAddressFromBech32("tbnb1reve5wwfes5u3r8hq8ukm6jwl5wtpfawxgshpr")
+	recipientOtherChain := "iaa1eqvkfthtrr93g4p9qspp54w6dtjtrn27ar7rpw"
+	senderOtherChain := deputy
+	randomNumberHash, _ := hex.DecodeString(data.Data.Hashlock)
+	timestamp := int64(data.Data.Timestamp)
+	expectedIncome := fmt.Sprintf("%d%s", amount.Amount, amount.Denom)
+	heightSpan := int64(360)
+	if !rpcClient.IsRunning() {
+		t.Fatal("rpc port is abnormal")
+	}
+	rpcClient.SetKeyManager(km)
+
+	val, err := rpcClient.SignHTLT(recipient, recipientOtherChain, senderOtherChain, randomNumberHash, timestamp, ctypes.Coins{amount}, expectedIncome, heightSpan, true, rpc.Sync)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	t.Log(hex.EncodeToString(val))
+	_, err = Post("http://localhost:8081/txs", fmt.Sprintf("{\"htlt_id\":%d,\"tx\":\"%s\",\"chain\":\"binance\"}", data.Data.Id, hex.EncodeToString(val)))
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
 }
